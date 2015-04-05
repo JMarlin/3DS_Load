@@ -1,7 +1,4 @@
 #include <stdio.h>
-#include <gl/gl.h>
-#include <gl/glu.h>
-#include <gl/glaux.h>
 #include "3ds.h"
 
 
@@ -11,8 +8,9 @@ obj3ds* load3ds(char* filename)
 {
   unsigned char chunk[4];
   int length, curchunk, verticecount, facecount, count, countwo;
-  vertex vertlist[100];
-  unsigned int facelist[100][3];
+  vertex *vertlist;
+  unsigned int *facelist;
+  obj3ds *outobject;
   int foundverts = 0, foundfaces = 0;
   
     
@@ -67,7 +65,7 @@ while(1)
       verticecount = (chunk[1]<<8) + chunk[0];
       fprintf(log, "\nverticecount: %x\n", verticecount);
       
-      //vertlist = malloc(verticecount*sizeof(vertex));
+      vertlist = (vertex*)malloc(verticecount*sizeof(vertex));
       
       for(count = 0; count < verticecount; count++)
       {
@@ -98,16 +96,16 @@ while(1)
             
       fprintf(log, "\nfacecount: %x\n", facecount);
       
-      //facelist = malloc(facecount*sizeof(poly3d));
+      facelist = (int*)malloc(facecount*sizeof(unsigned int)*3);
       
      for(count = 0; count < facecount; count++)
      {
         fread(chunk, 1, 4, file3ds);
-        facelist[count][0] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
+        facelist[(count*3)] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
         fread(chunk, 1, 4, file3ds);
-        facelist[count][1] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
+        facelist[(count*3)+1] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
         fread(chunk, 1, 4, file3ds);      
-        facelist[count][2] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
+        facelist[(count*3)+2] = (chunk[3]<<24)+(chunk[2]<<16)+(chunk[1]<<8) + chunk[0];
      
      }
            
@@ -129,29 +127,32 @@ while(1)
      
      }      
 
-    obj3ds* outobject = malloc(sizeof(*obj3ds)); 
-    //outobject->triangles = malloc(facecount*sizeof(poly3d));
+    outobject = (obj3ds*)malloc(sizeof(obj3ds)); 
+    outobject->triangles = (poly3d*)malloc(facecount*sizeof(poly3d));
     outobject->triNumber = facecount;
     for(count = 0; count < facecount; count++)
     {
-     outobject->triangles[count].a.x = vertlist[facelist[count][0]].x;
-     outobject->triangles[count].a.y = vertlist[facelist[count][0]].y;
-     outobject->triangles[count].a.z = vertlist[facelist[count][0]].z;
-     outobject->triangles[count].b.x = vertlist[facelist[count][1]].x;
-     outobject->triangles[count].b.y = vertlist[facelist[count][1]].y;
-     outobject->triangles[count].b.z = vertlist[facelist[count][1]].z;
-     outobject->triangles[count].c.x = vertlist[facelist[count][2]].x;
-     outobject->triangles[count].c.y = vertlist[facelist[count][2]].y;
-     outobject->triangles[count].c.z = vertlist[facelist[count][2]].z;
-     fprintf(log, "\nface%i: vertex%i, vertex%i, vertex%i\n", count, facelist[count][0], facelist[count][1], facelist[count][2]);
+     outobject->triangles[count].a.x = vertlist[facelist[(count*3)]].x;
+     outobject->triangles[count].a.y = vertlist[facelist[(count*3)]].y;
+     outobject->triangles[count].a.z = vertlist[facelist[(count*3)]].z;
+     outobject->triangles[count].b.x = vertlist[facelist[(count*3)+1]].x;
+     outobject->triangles[count].b.y = vertlist[facelist[(count*3)+1]].y;
+     outobject->triangles[count].b.z = vertlist[facelist[(count*3)+1]].z;
+     outobject->triangles[count].c.x = vertlist[facelist[(count*3)+2]].x;
+     outobject->triangles[count].c.y = vertlist[facelist[(count*3)+2]].y;
+     outobject->triangles[count].c.z = vertlist[facelist[(count*3)+2]].z;
+     fprintf(log, "\nface%i: vertex%i, vertex%i, vertex%i\n", count, facelist[(count*3)], facelist[(count*3)+1], facelist[(count*3)+2]);
     }
     
+    free(vertlist);
+    free(facelist);
     fclose(file3ds);
     fclose(log);
  
    return outobject;
 }
 
+/*
 void drawPoly(poly3d triangle)
 {
   glBegin(GL_TRIANGLES); 
@@ -160,11 +161,36 @@ void drawPoly(poly3d triangle)
      glVertex3f(triangle.c.x, triangle.c.y, triangle.c.z);   
   glEnd();
 }
+*/
 
-void draw3ds(obj3ds* object)
-{
+void draw3ds(obj3ds* object) {
+     
      int i; 
      for(i = 0; i < object->triNumber; i++)
      drawPoly(object->triangles[i]);
 }
 
+
+int jsonObj(obj3ds *object, char *jsonFileName) {
+
+    int i;
+    FILE *jsonFile = fopen(jsonFileName, "r");
+    
+    if(!jsonFile)
+        return 0;
+
+    fprintf(jsonFile, "{\"trinumber\":%d,\"triangles\":[", object->triNumber);
+    
+    for(i = 0; i < object->triNumber; i++) {
+    
+        if(i)
+            fprintf(jsonFile, ",");
+        
+        fprintf(jsonFile, "{\"a\":{\"x\":%d,\"y\":%d\"z\":%d},", object->triangles[i].a.x, object->triangles[i].a.y, object->triangles[i].a.z);
+        fprintf(jsonFile, "\"b\":{\"x\":%d,\"y\":%d\"z\":%d},", object->triangles[i].b.x, object->triangles[i].b.y, object->triangles[i].b.z);
+        fprintf(jsonFile, "\"c\":{\"x\":%d,\"y\":%d\"z\":%d}}", object->triangles[i].c.x, object->triangles[i].c.y, object->triangles[i].c.z);
+    }
+    
+    fprintf(jsonFile, "]}");
+    fclose(jsonFile);
+}

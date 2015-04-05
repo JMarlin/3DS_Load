@@ -1,31 +1,24 @@
-typedef struct 
+typedef struct vertex
 {  
    float x, y, z;     
 }vertex;
 
 
-typedef struct 
+typedef struct poly3d
 { 
   vertex a, b, c;
 }poly3d;
 
-typedef struct 
+typedef struct obj3ds
 {
-  poly3d triangles[100];
+  poly3d* triangles;
   int triNumber; 
 }obj3ds;
 
-
-
-typedef struct {
+typedef struct mapcoord{
 	float u,v;
 }mapcoord;
 
 void draw3ds(obj3ds* object);
-
-
-
-
-
 obj3ds* load3ds(char* filename);
 
